@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wherewent: a local-only Chrome time tracker that stops when you go idle</title>
+    <meta
+      name="description"
+      content="Wherewent is a Chrome time tracker for people juggling several projects. It stops itself when you go idle, then asks or resumes when you return. No account, no analytics, data stays in your browser."
+    />
+    <link rel="canonical" href="%VITE_SITE_URL%/" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f6f5f1" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#121310" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Wherewent" />
+    <meta property="og:title" content="Wherewent: know where the time went" />
+    <meta
+      property="og:description"
+      content="A Chrome time tracker that stops itself when you go idle and asks or resumes when you return. Local only: no account, no analytics, no network calls."
+    />
+    <meta property="og:url" content="%VITE_SITE_URL%/" />
+    <meta property="og:image" content="%VITE_SITE_URL%/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Wherewent popup showing a running timer next to the return-from-idle prompt." />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script>
+      try { var t = localStorage.getItem('ww-theme'); if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t } catch (e) {}
+    </script>
+    <script type="module" src="./site.ts"></script>
+    <script type="module" src="./visuals.tsx"></script>
+  </head>
+  <body class="min-h-dvh">
+    <a href="#main" class="sr-only-focusable fixed top-3 left-3 z-50 rounded-md bg-surface px-4 py-2 text-sm font-medium shadow-window">Skip to content</a>
+
+    <header class="border-b border-line">
+      <div class="mx-auto flex h-16 max-w-6xl items-center gap-6 px-5">
+        <a href="./" class="inline-flex items-center gap-2 font-display text-xl font-semibold tracking-[-0.01em]" aria-label="Wherewent home">
+          <svg width="22" height="22" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.25" fill="none" stroke="var(--ww-line-strong)" stroke-width="1.5" /><path d="M10 1.75 A8.25 8.25 0 1 1 2.2 12.7" fill="none" stroke="var(--ww-primary)" stroke-width="2.5" stroke-linecap="round" /><path d="M10 10 L10 5.2 M10 10 L13.2 11.6" stroke="var(--ww-ink)" stroke-width="1.6" stroke-linecap="round" /></svg>
+          Wherewent
+        </a>
+        <nav aria-label="Primary" class="ml-auto hidden md:block">
+          <ul class="flex gap-6 text-sm text-ink-2">
+            <li><a class="hover:text-ink" href="#how">How it works</a></li>
+            <li><a class="hover:text-ink" href="#privacy">Privacy</a></li>
+            <li><a class="hover:text-ink" href="#faq">FAQ</a></li>
+          </ul>
+        </nav>
+        <button type="button" data-theme-toggle aria-pressed="false" aria-label="Switch theme" class="ml-auto inline-flex size-10 items-center justify-center rounded-md text-ink-2 hover:bg-surface-2 hover:text-ink md:ml-0">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M12 3.5v17" /><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor" /></svg>
+        </button>
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <!-- Hero -->
+      <section class="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] items-center gap-12 px-5 pt-14 pb-20 md:pt-20 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)]" aria-labelledby="hero-h">
+        <div>
+          <p class="text-2xs font-semibold tracking-[0.12em] text-primary-ink uppercase">Time tracker for Chrome · local only</p>
+          <h1 id="hero-h" class="mt-4 font-display text-5xl leading-[1.02] font-semibold tracking-[-0.02em] text-balance sm:text-6xl lg:text-7xl">Know where the time went.</h1>
+          <p class="mt-6 max-w-[34rem] text-lg leading-relaxed text-ink-2">
+            A timer in your toolbar for people running four to eight projects at once. Switch in one tap. When you step away it stops itself, and when you come back it asks what you are doing, or picks up where you left off.
+          </p>
+          <div class="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4">
+            <!-- TODO: replace with the Chrome Web Store listing URL -->
+            <a href="#" data-placeholder="chrome-web-store" class="inline-flex h-12 items-center gap-2.5 rounded-lg bg-primary px-5 text-[15px] font-semibold text-on-primary transition-colors duration-150 hover:bg-primary-hover">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke-linecap="round" /></svg>
+              Add to Chrome
+            </a>
+            <!-- TODO: replace with the release .zip URL -->
+            <a href="#" data-placeholder="zip" class="text-[15px] font-medium text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink">Install from zip</a>
+          </div>
+          <ul class="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-sm text-ink-2" aria-label="At a glance">
+            <li class="flex items-center gap-2"><span class="size-1.5 rounded-full bg-primary" aria-hidden="true"></span>No account</li>
+            <li class="flex items-center gap-2"><span class="size-1.5 rounded-full bg-primary" aria-hidden="true"></span>No analytics</li>
+            <li class="flex items-center gap-2"><span class="size-1.5 rounded-full bg-primary" aria-hidden="true"></span>Data stays in your browser</li>
+          </ul>
+        </div>
+        <figure class="mx-auto w-full max-w-[560px]">
+          <div data-visual="hero" class="aspect-[560/640] w-full"></div>
+          <figcaption class="sr-only">The toolbar popup with a timer running on a client project, and the small window that appears when you return from being away for 14 minutes.</figcaption>
+        </figure>
+      </section>
+
+      <!-- Problem -->
+      <section class="border-y border-line bg-surface" aria-labelledby="problem-h">
+        <div class="mx-auto max-w-6xl px-5 py-20">
+          <h2 id="problem-h" class="max-w-2xl font-display text-4xl leading-tight font-semibold tracking-[-0.01em] text-balance">Most timers are wrong by lunchtime.</h2>
+          <div class="mt-10 grid gap-10 md:grid-cols-2">
+            <div class="border-t-2 border-ink pt-5">
+              <h3 class="text-lg font-semibold">You forget to switch.</h3>
+              <p class="mt-2 leading-relaxed text-ink-2">You start on one client, jump to another after a call, and the first timer keeps collecting the hours. By Friday you are splitting the week from memory.</p>
+            </div>
+            <div class="border-t-2 border-away pt-5">
+              <h3 class="text-lg font-semibold">It keeps running while you are away.</h3>
+              <p class="mt-2 leading-relaxed text-ink-2">Lunch, the school run, a conversation away from your desk. The timer has no idea, so it counts all of it.</p>
+            </div>
+          </div>
+          <p class="mt-10 max-w-2xl text-lg leading-relaxed text-ink">Both end the same way: invoices and plans built on guesses.</p>
+        </div>
+      </section>
+
+      <!-- How it works -->
+      <section id="how" class="mx-auto max-w-6xl scroll-mt-6 px-5 py-20" aria-labelledby="how-h">
+        <h2 id="how-h" class="font-display text-4xl leading-tight font-semibold tracking-[-0.01em]">How it works</h2>
+        <ol class="mt-10 grid gap-10 md:grid-cols-3">
+          <li>
+            <p class="tnum font-display text-5xl font-semibold text-primary" aria-hidden="true">1</p>
+            <h3 class="mt-3 text-lg font-semibold"><span class="sr-only">Step 1: </span>Track a project</h3>
+            <p class="mt-2 leading-relaxed text-ink-2">Pick a project, pick or type a task, press Start. Your last three project and task pairs are one tap away. Switching closes the current entry and opens the next.</p>
+          </li>
+          <li>
+            <p class="tnum font-display text-5xl font-semibold text-primary" aria-hidden="true">2</p>
+            <h3 class="mt-3 text-lg font-semibold"><span class="sr-only">Step 2: </span>It stops itself when you go idle</h3>
+            <p class="mt-2 leading-relaxed text-ink-2">After 2 minutes with no keyboard or mouse input (you can set 1 to 15), the entry ends at your last activity. Time away is never added.</p>
+          </li>
+          <li>
+            <p class="tnum font-display text-5xl font-semibold text-primary" aria-hidden="true">3</p>
+            <h3 class="mt-3 text-lg font-semibold"><span class="sr-only">Step 3: </span>You choose what happens next</h3>
+            <p class="mt-2 leading-relaxed text-ink-2"><strong class="font-semibold text-ink">Ask me</strong> shows how long you were gone, and Enter resumes. <strong class="font-semibold text-ink">Auto-resume</strong> restarts the same task and tells you. Away longer than your limit, 2 hours by default, and it asks anyway.</p>
+          </li>
+        </ol>
+      </section>
+
+      <!-- Product visuals -->
+      <section class="border-y border-line bg-surface-2" aria-labelledby="see-h">
+        <div class="mx-auto max-w-6xl px-5 py-20">
+          <h2 id="see-h" class="font-display text-4xl leading-tight font-semibold tracking-[-0.01em]">What it looks like</h2>
+          <p class="mt-3 max-w-2xl leading-relaxed text-ink-2">These are the extension's own screens rendered with sample data, not mockups.</p>
+
+          <div class="mt-12 grid grid-cols-[minmax(0,1fr)] items-start gap-12 md:grid-cols-2">
+            <figure class="mx-auto w-full max-w-[404px]">
+              <div data-visual="popup-idle" class="aspect-[404/600] w-full"></div>
+              <figcaption class="mt-4 text-sm leading-relaxed text-ink-2"><strong class="font-semibold text-ink">The popup.</strong> Choose a project and task, or restart one of your last three in one tap. Today's total sits in the header.</figcaption>
+            </figure>
+            <figure class="mx-auto w-full max-w-[362px]">
+              <div data-visual="return" class="aspect-[362/540] w-full"></div>
+              <figcaption class="mt-4 text-sm leading-relaxed text-ink-2"><strong class="font-semibold text-ink">Coming back.</strong> With Ask me, a small window says how long you were away and that it was not tracked. With Auto-resume, you get a notification instead, with a Switch button.</figcaption>
+            </figure>
+          </div>
+
+          <figure class="mt-16">
+            <div data-visual="dashboard" class="mx-auto aspect-[1280/900] w-full max-w-[1280px]"></div>
+            <figcaption class="mx-auto mt-4 max-w-2xl text-center text-sm leading-relaxed text-ink-2"><strong class="font-semibold text-ink">The dashboard.</strong> Time per project by day, week, month or six months. The timeline shows tracked blocks and the hatched gaps where you were away. Entries can be edited, deleted or added by hand.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <!-- Privacy -->
+      <section id="privacy" class="mx-auto max-w-6xl scroll-mt-6 px-5 py-20" aria-labelledby="privacy-h">
+        <div class="grid gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+          <div>
+            <h2 id="privacy-h" class="font-display text-4xl leading-tight font-semibold tracking-[-0.01em] text-balance">Nothing leaves your browser.</h2>
+            <p class="mt-4 leading-relaxed text-ink-2">Your hours say a lot about your clients and your week. Wherewent keeps them on your machine and nowhere else.</p>
+            <p class="mt-4"><a href="./privacy.html" class="font-medium text-primary-ink underline underline-offset-4">Read the privacy policy</a></p>
+          </div>
+          <ul class="grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2">
+            <li class="bg-surface p-5"><h3 class="font-semibold">Stored in your browser</h3><p class="mt-1 text-sm leading-relaxed text-ink-2">Projects, tasks and entries live in Chrome's local extension storage on this device.</p></li>
+            <li class="bg-surface p-5"><h3 class="font-semibold">No account</h3><p class="mt-1 text-sm leading-relaxed text-ink-2">Nothing to sign up for, no email, no password.</p></li>
+            <li class="bg-surface p-5"><h3 class="font-semibold">No analytics</h3><p class="mt-1 text-sm leading-relaxed text-ink-2">No usage tracking, telemetry or crash reporting. This website has none either.</p></li>
+            <li class="bg-surface p-5"><h3 class="font-semibold">No network calls</h3><p class="mt-1 text-sm leading-relaxed text-ink-2">The extension does not send or fetch anything over the internet.</p></li>
+            <li class="bg-surface p-5 sm:col-span-2"><h3 class="font-semibold">Deleted after 6 months</h3><p class="mt-1 text-sm leading-relaxed text-ink-2">Entries older than 6 months are removed automatically. Export to CSV or JSON any time if you want to keep a longer record.</p></li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- FAQ -->
+      <section id="faq" class="border-t border-line bg-surface" aria-labelledby="faq-h">
+        <div class="mx-auto max-w-3xl scroll-mt-6 px-5 py-20">
+          <h2 id="faq-h" class="font-display text-4xl leading-tight font-semibold tracking-[-0.01em]">Questions</h2>
+          <div class="mt-8 divide-y divide-line border-y border-line">
+            <details class="group py-1">
+              <summary class="flex min-h-14 list-none items-center justify-between gap-4 py-3 text-lg font-semibold [&::-webkit-details-marker]:hidden">What counts as idle?<span class="text-ink-3 transition-transform duration-150 group-open:rotate-45" aria-hidden="true">+</span></summary>
+              <p class="pb-5 leading-relaxed text-ink-2">No keyboard or mouse input on your computer for your idle threshold, 2 minutes by default and adjustable from 1 to 15. Locking your screen counts too. The entry ends at your last activity, so the threshold itself is not tracked either.</p>
+            </details>
+            <details class="group py-1">
+              <summary class="flex min-h-14 list-none items-center justify-between gap-4 py-3 text-lg font-semibold [&::-webkit-details-marker]:hidden">Does it work during calls?<span class="text-ink-3 transition-transform duration-150 group-open:rotate-45" aria-hidden="true">+</span></summary>
+              <p class="pb-5 leading-relaxed text-ink-2">If you listen for a while without touching the keyboard or mouse, it will treat that as idle and stop. For long calls, raise the idle threshold, or switch to Auto-resume so it picks up as soon as you move. The gap shows on your timeline, so you can add it back as a manual entry if it was billable.</p>
+            </details>
+            <details class="group py-1">
+              <summary class="flex min-h-14 list-none items-center justify-between gap-4 py-3 text-lg font-semibold [&::-webkit-details-marker]:hidden">How do I export my data?<span class="text-ink-3 transition-transform duration-150 group-open:rotate-45" aria-hidden="true">+</span></summary>
+              <p class="pb-5 leading-relaxed text-ink-2">Open the dashboard and choose Export CSV or Export JSON. The file is created in your browser and saved to your downloads. Nothing is uploaded.</p>
+            </details>
+            <details class="group py-1">
+              <summary class="flex min-h-14 list-none items-center justify-between gap-4 py-3 text-lg font-semibold [&::-webkit-details-marker]:hidden">What happens after 6 months?<span class="text-ink-3 transition-transform duration-150 group-open:rotate-45" aria-hidden="true">+</span></summary>
+              <p class="pb-5 leading-relaxed text-ink-2">Entries older than 6 months are deleted automatically from your device. Your projects and settings stay. If you need a longer history, export before then.</p>
+            </details>
+            <details class="group py-1">
+              <summary class="flex min-h-14 list-none items-center justify-between gap-4 py-3 text-lg font-semibold [&::-webkit-details-marker]:hidden">Can my team use it?<span class="text-ink-3 transition-transform duration-150 group-open:rotate-45" aria-hidden="true">+</span></summary>
+              <p class="pb-5 leading-relaxed text-ink-2">Each person can install it for themselves, but there is no shared workspace, sync or team reporting, because there are no accounts or servers. People can export CSV files and combine them.</p>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <!-- Closing CTA -->
+      <section class="mx-auto max-w-6xl px-5 py-20 text-center" aria-labelledby="cta-h">
+        <h2 id="cta-h" class="mx-auto max-w-2xl font-display text-4xl leading-tight font-semibold tracking-[-0.01em] text-balance">Track the hours you actually worked.</h2>
+        <div class="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-4">
+          <a href="#" data-placeholder="chrome-web-store" class="inline-flex h-12 items-center gap-2.5 rounded-lg bg-primary px-5 text-[15px] font-semibold text-on-primary transition-colors duration-150 hover:bg-primary-hover">Add to Chrome</a>
+          <a href="#" data-placeholder="zip" class="text-[15px] font-medium text-ink underline decoration-line-strong underline-offset-4 hover:decoration-ink">Install from zip</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="border-t border-line">
+      <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-5 py-8 text-sm text-ink-2">
+        <span class="font-display text-base font-semibold text-ink">Wherewent</span>
+        <a href="./privacy.html" class="underline underline-offset-4 hover:text-ink">Privacy policy</a>
+        <p class="sm:ml-auto">This site uses no cookies, analytics or third-party scripts.</p>
+      </div>
+    </footer>
+  </body>
+</html>

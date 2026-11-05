@@ -1,0 +1,221 @@
+/*
+ * Wherewent design tokens ("Field Ledger").
+ * Single source of truth for the extension prototype AND the landing page.
+ * Components use Tailwind utilities mapped to these variables (bg-surface,
+ * text-ink-2, border-line ...). Never use raw hex in components.
+ */
+@import 'tailwindcss';
+/* Scan all of src/ regardless of which Vite root is building (landing uses src/landing). */
+@source '..';
+@import '@fontsource-variable/inter/index.css';
+@import '@fontsource-variable/newsreader/index.css';
+
+:root {
+  color-scheme: light;
+  /* Paper + ink neutrals */
+  --ww-bg: #f6f5f1;
+  --ww-surface: #ffffff;
+  --ww-surface-2: #efede7;
+  --ww-surface-3: #e6e3db;
+  --ww-line: #dedad0;
+  --ww-line-strong: #c4bfb2;
+  --ww-ink: #1b1a17;
+  --ww-ink-2: #55524a;
+  --ww-ink-3: #6b675d;
+
+  /* Tracked time (primary) */
+  --ww-primary: #0e6b59;
+  --ww-primary-hover: #0a5747;
+  --ww-on-primary: #ffffff;
+  --ww-primary-soft: #e1efea;
+  --ww-primary-ink: #0b5a4a;
+
+  /* Away / not tracked */
+  --ww-away: #9a4a07;
+  --ww-away-soft: #f9ecd6;
+  --ww-away-line: #d9a35a;
+
+  --ww-danger: #b3261e;
+  --ww-danger-soft: #fbe9e7;
+  --ww-ring: #0e6b59;
+
+  /* Project palette: fills that keep >=3:1 against surface in each theme */
+  --ww-p-pine: #11806f;
+  --ww-p-cobalt: #3563b0;
+  --ww-p-ochre: #9c620e;
+  --ww-p-brick: #bc4a33;
+  --ww-p-plum: #85509a;
+  --ww-p-olive: #607d1f;
+  --ww-p-rose: #b93f72;
+  --ww-p-slate: #56606b;
+
+  --ww-on-project: #ffffff;
+  --ww-shadow-window: 0 1px 2px rgb(27 26 23 / 0.06), 0 12px 32px -8px rgb(27 26 23 / 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --ww-bg: #121310;
+    --ww-surface: #1a1b18;
+    --ww-surface-2: #222420;
+    --ww-surface-3: #2b2d28;
+    --ww-line: #30332d;
+    --ww-line-strong: #454941;
+    --ww-ink: #eceae3;
+    --ww-ink-2: #b2aea3;
+    --ww-ink-3: #9a968b;
+    --ww-primary: #5cc3a9;
+    --ww-primary-hover: #7bd1bb;
+    --ww-on-primary: #0a1f1a;
+    --ww-primary-soft: #183129;
+    --ww-primary-ink: #7fd3bd;
+    --ww-away: #e9a752;
+    --ww-away-soft: #33271a;
+    --ww-away-line: #8c6431;
+    --ww-danger: #f2786a;
+    --ww-danger-soft: #3a1f1c;
+    --ww-ring: #7bd1bb;
+    --ww-p-pine: #3fb39f;
+    --ww-p-cobalt: #6f9be0;
+    --ww-p-ochre: #d39a3e;
+    --ww-p-brick: #e07a62;
+    --ww-p-plum: #b585c8;
+    --ww-p-olive: #98b95a;
+    --ww-p-rose: #e07aa5;
+    --ww-p-slate: #96a1ad;
+    --ww-on-project: #10110f;
+    --ww-shadow-window: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 40px -8px rgb(0 0 0 / 0.6);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ww-bg: #121310;
+  --ww-surface: #1a1b18;
+  --ww-surface-2: #222420;
+  --ww-surface-3: #2b2d28;
+  --ww-line: #30332d;
+  --ww-line-strong: #454941;
+  --ww-ink: #eceae3;
+  --ww-ink-2: #b2aea3;
+  --ww-ink-3: #9a968b;
+  --ww-primary: #5cc3a9;
+  --ww-primary-hover: #7bd1bb;
+  --ww-on-primary: #0a1f1a;
+  --ww-primary-soft: #183129;
+  --ww-primary-ink: #7fd3bd;
+  --ww-away: #e9a752;
+  --ww-away-soft: #33271a;
+  --ww-away-line: #8c6431;
+  --ww-danger: #f2786a;
+  --ww-danger-soft: #3a1f1c;
+  --ww-ring: #7bd1bb;
+  --ww-p-pine: #3fb39f;
+  --ww-p-cobalt: #6f9be0;
+  --ww-p-ochre: #d39a3e;
+  --ww-p-brick: #e07a62;
+  --ww-p-plum: #b585c8;
+  --ww-p-olive: #98b95a;
+  --ww-p-rose: #e07aa5;
+  --ww-p-slate: #96a1ad;
+  --ww-on-project: #10110f;
+  --ww-shadow-window: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 40px -8px rgb(0 0 0 / 0.6);
+}
+
+@theme inline {
+  --color-bg: var(--ww-bg);
+  --color-surface: var(--ww-surface);
+  --color-surface-2: var(--ww-surface-2);
+  --color-surface-3: var(--ww-surface-3);
+  --color-line: var(--ww-line);
+  --color-line-strong: var(--ww-line-strong);
+  --color-ink: var(--ww-ink);
+  --color-ink-2: var(--ww-ink-2);
+  --color-ink-3: var(--ww-ink-3);
+  --color-primary: var(--ww-primary);
+  --color-primary-hover: var(--ww-primary-hover);
+  --color-on-primary: var(--ww-on-primary);
+  --color-primary-soft: var(--ww-primary-soft);
+  --color-primary-ink: var(--ww-primary-ink);
+  --color-away: var(--ww-away);
+  --color-away-soft: var(--ww-away-soft);
+  --color-away-line: var(--ww-away-line);
+  --color-danger: var(--ww-danger);
+  --color-danger-soft: var(--ww-danger-soft);
+  --color-ring: var(--ww-ring);
+
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Newsreader Variable', ui-serif, Georgia, 'Times New Roman', serif;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --shadow-window: var(--ww-shadow-window);
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--ww-bg);
+    color: var(--ww-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* One focus treatment everywhere: 2px ring, 2px offset, theme-aware. */
+  :focus-visible {
+    outline: 2px solid var(--ww-ring);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+  button,
+  [role='button'],
+  summary,
+  label[for],
+  select {
+    cursor: pointer;
+  }
+  button:disabled {
+    cursor: not-allowed;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* All durations, clocks and totals use tabular figures. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1, 'cv11' 1;
+  }
+  /* Away / not-tracked time: amber hatching so it never relies on color alone. */
+  .hatch-away {
+    background-color: var(--ww-away-soft);
+    background-image: repeating-linear-gradient(
+      135deg,
+      var(--ww-away-line) 0 1.5px,
+      transparent 1.5px 6px
+    );
+  }
+  .sr-only-focusable:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+}
