@@ -3,6 +3,8 @@ import { ArrowLeftIcon, ArrowRightIcon, HardDriveIcon, HourglassMediumIcon, Plus
 import { useWherewent } from '../store'
 import { PROJECT_COLORS, type ProjectColor, type ReturnBehavior } from '../types'
 import { Button, IconButton, LogoMark, ProjectDot, cx } from './ui'
+import { formatThreshold } from '../lib/time'
+import { idleThresholdOptions } from './options'
 
 type Draft = { key: number; name: string; color: ProjectColor }
 
@@ -16,7 +18,7 @@ export function Onboarding() {
     { key: 2, name: '', color: PROJECT_COLORS[2] },
   ])
   const [onReturn, setOnReturn] = useState<ReturnBehavior>('ask')
-  const [threshold, setThreshold] = useState(2)
+  const [threshold, setThreshold] = useState(120)
   const headingRef = useRef<HTMLHeadingElement>(null)
   const named = drafts.filter((d) => d.name.trim())
 
@@ -31,7 +33,7 @@ export function Onboarding() {
   const finish = () =>
     store.completeOnboarding({
       projects: named.map(({ name, color }) => ({ name, color })),
-      settings: { onReturn, idleThresholdMin: threshold },
+      settings: { onReturn, idleThresholdSec: threshold },
     })
 
   return (
@@ -127,9 +129,9 @@ export function Onboarding() {
                 onChange={(e) => setThreshold(Number(e.target.value))}
                 className="tnum h-9 rounded-md border border-line-strong bg-surface px-2 text-sm"
               >
-                {[1, 2, 3, 5, 10, 15].map((m) => (
-                  <option key={m} value={m}>
-                    {m} min idle
+                {idleThresholdOptions().map((sec) => (
+                  <option key={sec} value={sec}>
+                    {formatThreshold(sec)} idle
                   </option>
                 ))}
               </select>

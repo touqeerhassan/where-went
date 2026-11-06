@@ -7,6 +7,7 @@ import {
   FolderSimpleIcon,
   GearSixIcon,
   ListBulletsIcon,
+  WarningIcon,
 } from '@phosphor-icons/react'
 import { useWherewent } from '../../store'
 import type { Entry } from '../../types'
@@ -16,7 +17,7 @@ import {
   findTask,
   formatClock,
   formatDuration,
-  sessionElapsed,
+  timerElapsed,
   startOfDay,
   toDateInput,
   totalIn,
@@ -24,6 +25,7 @@ import {
 } from '../../lib/time'
 import { useNow } from '../hooks'
 import { Button, IconButton, ProjectDot, Segmented, Wordmark, cx } from '../ui'
+import { expiringSoon } from '../../core/engine'
 import { computeRange, shiftAnchor, type RangeKind } from './range'
 import { Card, DayTimeline, ProjectBars, TotalsColumns } from './Charts'
 import { EntriesTable } from './EntriesView'
@@ -98,14 +100,15 @@ export function Dashboard({ initialView = 'overview', initialRange = 'week', fro
     download(`wherewent-${toDateInput(now)}.${f}`, data, f === 'csv' ? 'text/csv' : 'application/json')
   }
 
-  const session = state.session
+  const expiring = useMemo(() => expiringSoon(state, now), [state, now])
+  const session = state.active ?? state.paused
   const sp = findProject(state, session?.projectId)
   const st = findTask(state, session?.taskId)
   const showRange = view === 'overview' || view === 'entries'
 
   return (
     // Layout follows the dashboard's own width (container queries), not the viewport.
-    <div className="@container flex min-h-full flex-col">
+    <div className="@container flex min-h-full flex-1 flex-col">
     <div className="ww-dashboard grid flex-1 grid-cols-1 bg-bg text-ink @3xl:grid-cols-[13.5rem_minmax(0,1fr)]">
       <aside className="flex flex-col border-b border-line bg-surface @3xl:border-r @3xl:border-b-0">
         <div className="flex h-14 items-center px-4">
@@ -136,9 +139,9 @@ export function Dashboard({ initialView = 'overview', initialRange = 'week', fro
             <div className="rounded-md border border-line bg-bg p-2.5" aria-label="Current timer" role="group">
               <p className="flex items-center gap-1.5 text-2xs font-semibold tracking-[0.08em] text-primary-ink uppercase">
                 <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
-                {session.runningSince ? 'Tracking' : 'Paused'}
+                {state.active ? 'Tracking' : 'Paused'}
               </p>
-              <p className="tnum mt-1 text-lg font-semibold">{formatClock(sessionElapsed(session, now))}</p>
+              <p className="tnum mt-1 text-lg font-semibold">{formatClock(timerElapsed(state, now))}</p>
               <p className="flex items-center gap-1.5 truncate text-[12px] text-ink-2">
                 <ProjectDot color={sp.color} size={7} />
                 <span className="truncate">
@@ -176,17 +179,31 @@ export function Dashboard({ initialView = 'overview', initialRange = 'week', fro
             </div>
           )}
           <div className="flex items-center gap-1" role="group" aria-label="Export all data">
-            <span className="mr-1 hidden text-[12px] text-ink-3 @5xl:inline">Export</span>
-            <Button size="sm" onClick={() => doExport('csv')}>
-              <DownloadSimpleIcon size={14} aria-hidden="true" /> CSV
+            <Button size="sm" onClick={() => doExport('csv')} title="Every entry, all time, as a spreadsheet">
+              <DownloadSimpleIcon size={14} aria-hidden="true" /> Export CSV
             </Button>
-            <Button size="sm" onClick={() => doExport('json')}>
-              <DownloadSimpleIcon size={14} aria-hidden="true" /> JSON
+            <Button size="sm" onClick={() => doExport('json')} title="Everything: projects, tasks, entries, away periods, settings">
+              <DownloadSimpleIcon size={14} aria-hidden="true" /> Export JSON
             </Button>
           </div>
         </header>
 
         <main className="flex flex-col gap-4 p-4 @3xl:p-6">
+          {expiring.length > 0 && (
+            <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-away-line bg-away-soft/60 px-4 py-3 text-[13px]">
+              <WarningIcon size={18} className="shrink-0 text-away" aria-hidden="true" />
+              <p className="min-w-0 flex-1">
+                <span className="tnum font-semibold">{expiring.length}</span> {expiring.length === 1 ? 'entry reaches' : 'entries reach'} 6 months old in the next 14 days and will be
+                deleted permanently. Export now to keep a copy.
+              </p>
+              <Button size="sm" onClick={() => doExport('csv')}>
+                <DownloadSimpleIcon size={14} aria-hidden="true" /> Export CSV
+              </Button>
+              <Button size="sm" onClick={() => doExport('json')}>
+                <DownloadSimpleIcon size={14} aria-hidden="true" /> Export JSON
+              </Button>
+            </div>
+          )}
           {view === 'overview' && (
             <>
               <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-line bg-line @5xl:grid-cols-4">

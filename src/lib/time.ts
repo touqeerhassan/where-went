@@ -1,4 +1,4 @@
-import type { Entry, Project, Session, State, Task } from '../types'
+import type { Entry, Project, State, Task } from '../types'
 
 export const MIN = 60_000
 export const HOUR = 60 * MIN
@@ -35,6 +35,7 @@ export function formatClock(ms: number): string {
 
 /** "3h 12m", "45m", "0m". */
 export function formatDuration(ms: number): string {
+  if (ms > 0 && ms < 30_000) return '<1m'
   const totalMin = Math.max(0, Math.round(ms / MIN))
   const h = Math.floor(totalMin / 60)
   const m = totalMin % 60
@@ -72,26 +73,20 @@ export function fromDateTimeInputs(date: string, time: string): number {
   return new Date(y, mo - 1, da, h, mi, 0, 0).getTime()
 }
 
-export function sessionElapsed(session: Session | null, now: number): number {
-  if (!session) return 0
-  return session.accumulatedMs + (session.runningSince ? now - session.runningSince : 0)
+/** Elapsed time of the running (or paused) timer, computed from timestamps only. */
+export function timerElapsed(state: Pick<State, 'active' | 'paused'>, now: number): number {
+  if (state.active) return Math.max(0, now - state.active.startedAt)
+  if (state.paused) return Math.max(0, state.paused.pausedAt - state.paused.startedAt)
+  return 0
 }
 
-/** Closed entries plus the live segment, clipped to [from, to). */
-export function entriesWithLive(state: State, now: number): Entry[] {
-  const s = state.session
-  if (!s?.runningSince) return state.entries
+/** Closed entries plus the live segment of the running timer. */
+export function entriesWithLive(state: Pick<State, 'entries' | 'active'>, now: number): Entry[] {
+  const a = state.active
+  if (!a) return state.entries
   return [
     ...state.entries,
-    {
-      id: 'live',
-      projectId: s.projectId,
-      taskId: s.taskId,
-      start: s.runningSince,
-      end: now,
-      source: 'timer',
-      endedBy: 'stop',
-    },
+    { id: 'live', projectId: a.projectId, taskId: a.taskId, start: a.startedAt, end: Math.max(a.startedAt, now), source: 'timer', endedBy: 'stop' },
   ]
 }
 
@@ -126,7 +121,7 @@ export interface Pair {
 }
 
 /** Most recent distinct project/task pairs, newest first. */
-export function recentPairs(state: State, limit = 3, exclude?: { projectId: string; taskId: string | null }): Pair[] {
+export function recentPairs(state: Pick<State, 'entries' | 'projects' | 'tasks'>, limit = 3, exclude?: { projectId: string; taskId: string | null }): Pair[] {
   const seen = new Set<string>()
   const out: Pair[] = []
   const sorted = [...state.entries].sort((a, b) => b.end - a.end)
@@ -144,9 +139,14 @@ export function recentPairs(state: State, limit = 3, exclude?: { projectId: stri
   return out
 }
 
-export function findProject(state: State, id: string | null | undefined): Project | undefined {
+export function findProject(state: Pick<State, 'projects'>, id: string | null | undefined): Project | undefined {
   return id ? state.projects.find((p) => p.id === id) : undefined
 }
-export function findTask(state: State, id: string | null | undefined): Task | undefined {
+export function findTask(state: Pick<State, 'tasks'>, id: string | null | undefined): Task | undefined {
   return id ? state.tasks.find((t) => t.id === id) : undefined
+}
+
+/** "2 min", "90 s", "15 s". */
+export function formatThreshold(sec: number): string {
+  return sec % 60 === 0 ? `${sec / 60} min` : `${sec} s`
 }

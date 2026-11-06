@@ -26,14 +26,14 @@ export function scenarioState(name: ScenarioName, now = Date.now()): State {
     case 'running':
     case 'dashboard': {
       const s = seedState(now, { todayUntil: now - 47 * MIN })
-      return { ...s, session: { ...CURRENT, startedAt: now - 47 * MIN, accumulatedMs: 0, runningSince: now - 47 * MIN - 13_000 } }
+      return { ...s, active: { ...CURRENT, startedAt: now - 47 * MIN - 13_000 } }
     }
     case 'return': {
       const s = seedState(now, { todayUntil: now - 14 * MIN })
       return {
         ...s,
         away: [...s.away, { id: 'a_now', start: now - 14 * MIN, end: now }],
-        pendingReturn: { awayStart: now - 14 * MIN, returnedAt: now, previous: CURRENT, reason: 'ask' },
+        pendingResume: { ...CURRENT, idleSince: now - 14 * MIN, returnedAt: now, reason: 'ask' },
       }
     }
     case 'auto-resume': {
@@ -42,7 +42,7 @@ export function scenarioState(name: ScenarioName, now = Date.now()): State {
         ...s,
         settings: { ...s.settings, onReturn: 'auto' },
         away: [...s.away, { id: 'a_now', start: now - 15 * MIN, end: now - 1 * MIN }],
-        session: { ...CURRENT, startedAt: now - MIN, accumulatedMs: 0, runningSince: now - MIN },
+        active: { ...CURRENT, startedAt: now - MIN },
         autoResumed: { awayStart: now - 15 * MIN, returnedAt: now - MIN, ...CURRENT },
       }
     }

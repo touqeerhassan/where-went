@@ -123,10 +123,11 @@ export function seedState(now: number, opts: { todayUntil?: number } = {}): Stat
     tasks,
     entries,
     away,
-    session: null,
-    idle: null,
     settings: { ...DEFAULT_SETTINGS },
-    pendingReturn: null,
+    active: null,
+    paused: null,
+    pendingResume: null,
     autoResumed: null,
+    lastSeen: now,
   }
 }

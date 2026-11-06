@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ArrowSquareOutIcon, ArrowCounterClockwiseIcon, MoonIcon } from '@phosphor-icons/react'
-import { defaultStore, useWherewent } from '../store'
+import { useWherewent } from '../store'
 import type { MockStore } from '../mock/mockStore'
 import { scenarioState, type ScenarioName } from '../mock/scenarios'
 import { MIN } from '../lib/time'
@@ -23,14 +23,13 @@ const SCREENS: { id: ScenarioName; label: string; surface: Surface; note: string
   { id: 'dashboard', label: 'Dashboard', surface: 'dashboard', note: 'Full tab' },
 ]
 
-const mock = defaultStore as MockStore
 
 function readHash(): ScenarioName {
   const h = window.location.hash.slice(1) as ScenarioName
   return SCREENS.some((s) => s.id === h) ? h : 'idle'
 }
 
-export function Shell() {
+export function Shell({ mock }: { mock: MockStore }) {
   const [state, store] = useWherewent()
   const [screen, setScreen] = useState<ScenarioName>(readHash)
   const [surface, setSurface] = useState<Surface>(() => SCREENS.find((s) => s.id === readHash())!.surface)
@@ -54,16 +53,14 @@ export function Shell() {
 
   // Exercise the real store rules: stop on idle 14 min ago, return now.
   const simulateIdle = async () => {
-    const now = Date.now()
-    await store.goIdle(now - 14 * MIN)
-    await store.returnFromIdle(now)
+    mock.simulateAway(14 * MIN)
     const s = store.getState()
-    if (s.pendingReturn) setSurface('return')
+    if (s.pendingResume?.returnedAt != null) setSurface('return')
     else setSurface('popup')
   }
 
   const current = SCREENS.find((s) => s.id === screen)!
-  const canSimulate = !!state.session?.runningSince && (surface === 'popup' || surface === 'dashboard')
+  const canSimulate = !!state.active && (surface === 'popup' || surface === 'dashboard')
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -151,9 +148,9 @@ export function Shell() {
         {surface === 'return' && (
           <div className="flex flex-col items-center gap-4">
             <WindowFrame title="Wherewent">
-              <ReturnPrompt key={state.pendingReturn?.returnedAt} onDone={() => setSurface('popup')} />
+              <ReturnPrompt key={state.pendingResume?.returnedAt ?? 0} onDone={() => setSurface('popup')} />
             </WindowFrame>
-            {!state.pendingReturn && (
+            {!state.pendingResume && (
               <Button size="sm" onClick={() => setSurface('popup')}>
                 Open popup
               </Button>

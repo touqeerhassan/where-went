@@ -1,4 +1,4 @@
-// Domain model. Plain JSON-serialisable data so it can live in chrome.storage.local later.
+// Domain model. Plain JSON-serialisable data stored in chrome.storage.local.
 
 export type ProjectColor = 'pine' | 'cobalt' | 'ochre' | 'brick' | 'plum' | 'olive' | 'rose' | 'slate'
 
@@ -32,46 +32,57 @@ export interface Entry {
   endedBy: EntryEnd
 }
 
-/** A period the user was away (idle). Never counted as tracked time. */
+/** A period the user was away (idle) while a timer had been running. Never counted. */
 export interface AwayPeriod {
   id: string
   start: number
   end: number
 }
 
-/** The live timer. `runningSince` is null while paused. */
-export interface Session {
+/**
+ * The running timer. This is the only timer state; elapsed time is always
+ * `now - startedAt`, never a counter.
+ */
+export interface ActiveTimer {
   projectId: string
   taskId: string | null
   startedAt: number
-  accumulatedMs: number
-  runningSince: number | null
+}
+
+/** A timer the user paused. Its last segment is already saved as an entry. */
+export interface PausedTimer extends ActiveTimer {
+  pausedAt: number
+}
+
+/**
+ * Set when the user goes idle with a timer running. `idleSince` is the
+ * backdated moment they actually stopped. `returnedAt` is set once they come
+ * back and are being asked (Ask me, or Auto-resume over the limit).
+ */
+export interface PendingResume {
+  projectId: string
+  taskId: string | null
+  idleSince: number
+  returnedAt: number | null
+  reason: 'ask' | 'too-long' | null
+}
+
+/** Shown after an automatic resume. */
+export interface AutoResumeNotice {
+  projectId: string
+  taskId: string | null
+  awayStart: number
+  returnedAt: number
 }
 
 export type ReturnBehavior = 'ask' | 'auto'
 
 export interface Settings {
-  /** Minutes without input before the timer stops itself. */
-  idleThresholdMin: number
+  /** Seconds without input before the timer stops itself. Minimum 15. */
+  idleThresholdSec: number
   onReturn: ReturnBehavior
   /** Above this many minutes away, auto-resume falls back to asking. */
   autoResumeMaxAwayMin: number
-}
-
-/** Shown when the user comes back from idle and the setting is Ask me (or the away was too long). */
-export interface PendingReturn {
-  awayStart: number
-  returnedAt: number
-  previous: { projectId: string; taskId: string | null }
-  reason: 'ask' | 'too-long'
-}
-
-/** Shown after an automatic resume. */
-export interface AutoResumeNotice {
-  awayStart: number
-  returnedAt: number
-  projectId: string
-  taskId: string | null
 }
 
 export interface State {
@@ -80,19 +91,22 @@ export interface State {
   tasks: Task[]
   entries: Entry[]
   away: AwayPeriod[]
-  session: Session | null
-  /** Set while the user is away. `previous` is what was running when they left. */
-  idle: { since: number; previous: { projectId: string; taskId: string | null } | null } | null
   settings: Settings
-  pendingReturn: PendingReturn | null
+  active: ActiveTimer | null
+  paused: PausedTimer | null
+  pendingResume: PendingResume | null
   autoResumed: AutoResumeNotice | null
+  /** Heartbeat written every minute; used to cap entries after sleep or a closed browser. */
+  lastSeen: number | null
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  idleThresholdMin: 2,
+  idleThresholdSec: 120,
   onReturn: 'ask',
   autoResumeMaxAwayMin: 120,
 }
 
-/** Entries and away periods older than this are deleted automatically. */
+export const MIN_IDLE_SEC = 15
+
+/** Entries and away periods older than this are deleted automatically (about 6 months). */
 export const RETENTION_DAYS = 183

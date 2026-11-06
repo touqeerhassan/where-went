@@ -4,10 +4,11 @@ import { useWherewent } from '../../store'
 import type { State } from '../../types'
 import { formatDuration } from '../../lib/time'
 import { ChoiceCard } from '../Onboarding'
+import { MAX_AWAY_OPTIONS_MIN, idleThresholdOptions } from '../options'
 import { Button } from '../ui'
 
-const THRESHOLDS = [1, 2, 3, 5, 10, 15]
-const MAX_AWAY = [30, 60, 120, 240, 480]
+const thresholdLabel = (sec: number) =>
+  sec < 60 ? `${sec} seconds (testing)` : `${sec / 60} minute${sec === 60 ? '' : 's'}${sec === 120 ? ' (default)' : ''}`
 
 export function SettingsView({ state, onExport }: { state: State; onExport: (f: 'csv' | 'json') => void }) {
   const [, store] = useWherewent()
@@ -34,14 +35,13 @@ export function SettingsView({ state, onExport }: { state: State; onExport: (f: 
             <select
               id={`${id}-th`}
               aria-describedby={`${id}-th-h`}
-              value={s.idleThresholdMin}
-              onChange={(e) => store.updateSettings({ idleThresholdMin: Number(e.target.value) })}
+              value={s.idleThresholdSec}
+              onChange={(e) => store.updateSettings({ idleThresholdSec: Number(e.target.value) })}
               className="tnum h-9 rounded-md border border-line-strong bg-surface px-2 text-sm"
             >
-              {THRESHOLDS.map((m) => (
-                <option key={m} value={m}>
-                  {m} minute{m === 1 ? '' : 's'}
-                  {m === 2 ? ' (default)' : ''}
+              {[...new Set([...idleThresholdOptions(), s.idleThresholdSec])].sort((a, b) => a - b).map((sec) => (
+                <option key={sec} value={sec}>
+                  {thresholdLabel(sec)}
                 </option>
               ))}
             </select>
@@ -77,7 +77,7 @@ export function SettingsView({ state, onExport }: { state: State; onExport: (f: 
               onChange={(e) => store.updateSettings({ autoResumeMaxAwayMin: Number(e.target.value) })}
               className="tnum h-9 rounded-md border border-line-strong bg-surface px-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {MAX_AWAY.map((m) => (
+              {MAX_AWAY_OPTIONS_MIN.map((m) => (
                 <option key={m} value={m}>
                   {formatDuration(m * 60_000).replace(' 00m', '')}
                   {m === 120 ? ' (default)' : ''}

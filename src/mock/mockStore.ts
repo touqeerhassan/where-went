@@ -1,283 +1,85 @@
 /**
- * In-memory implementation of WherewentStore. No persistence, no network.
- * Behaviour mirrors what the chrome.storage version must do, so the prototype
- * exercises the real rules (idle stop, ask vs auto-resume, retention).
+ * In-memory WherewentStore for the prototype shell and landing page. It runs
+ * the same pure engine as the service worker; effects are reflected in state
+ * (pendingResume / autoResumed) rather than real notifications.
  */
-import type { ExportFormat, ReturnChoice, TaskRef, WherewentStore } from '../store'
-import { DEFAULT_SETTINGS, RETENTION_DAYS, type Entry, type EntryEnd, type State, type Task } from '../types'
-import { DAY, MIN, decimalHours, toDateInput, toTimeInput } from '../lib/time'
+import type { WherewentStore } from '../store'
+import type { State } from '../types'
+import * as E from '../core/engine'
+import { exportData } from '../core/export'
 
-let counter = 0
-export const uid = (prefix: string) => `${prefix}_${Date.now().toString(36)}${(counter++).toString(36)}`
-
-export function emptyState(): State {
-  return {
-    onboarded: false,
-    projects: [],
-    tasks: [],
-    entries: [],
-    away: [],
-    session: null,
-    idle: null,
-    settings: { ...DEFAULT_SETTINGS },
-    pendingReturn: null,
-    autoResumed: null,
-  }
-}
-
-function prune(s: State, now: number): State {
-  const cutoff = now - RETENTION_DAYS * DAY
-  if (!s.entries.some((e) => e.end < cutoff) && !s.away.some((a) => a.end < cutoff)) return s
-  return { ...s, entries: s.entries.filter((e) => e.end >= cutoff), away: s.away.filter((a) => a.end >= cutoff) }
-}
+export { emptyState } from '../core/engine'
 
 export interface MockStore extends WherewentStore {
   /** Prototype only: replace the whole state (used by the screen switcher). */
   replaceState(next: State): void
+  /** Prototype only: pretend the user stopped `awayMs` ago and has just come back. */
+  simulateAway(awayMs: number): void
 }
 
-export function createMockStore(initial: State = emptyState(), clock: () => number = Date.now): MockStore {
-  let state = prune(initial, clock())
+export function createMockStore(initial: State = E.emptyState(), clock: () => number = Date.now): MockStore {
+  let state = E.prune(initial, clock())
   const listeners = new Set<() => void>()
-
   const commit = (next: State) => {
+    if (next === state) return
     state = next
     listeners.forEach((l) => l())
   }
-  const done = () => Promise.resolve()
-
-  const resolveTask = (s: State, ref: TaskRef): { state: State; taskId: string | null } => {
-    if (ref.taskId !== undefined && ref.taskId !== null) return { state: s, taskId: ref.taskId }
-    const name = ref.taskName?.trim()
-    if (!name) return { state: s, taskId: null }
-    const existing = s.tasks.find((t) => t.projectId === ref.projectId && t.name.toLowerCase() === name.toLowerCase())
-    if (existing) {
-      return existing.archived
-        ? { state: { ...s, tasks: s.tasks.map((t) => (t.id === existing.id ? { ...t, archived: false } : t)) }, taskId: existing.id }
-        : { state: s, taskId: existing.id }
-    }
-    const task: Task = { id: uid('t'), projectId: ref.projectId, name, archived: false }
-    return { state: { ...s, tasks: [...s.tasks, task] }, taskId: task.id }
+  const apply = (step: E.Step) => {
+    commit(step.state)
+    return Promise.resolve()
   }
 
-  /** Close the live segment (if any) into an entry. */
-  const closeSegment = (s: State, at: number, endedBy: EntryEnd): State => {
-    const sess = s.session
-    if (!sess?.runningSince) return s
-    const entry: Entry = {
-      id: uid('e'),
-      projectId: sess.projectId,
-      taskId: sess.taskId,
-      start: sess.runningSince,
-      end: Math.max(at, sess.runningSince),
-      source: 'timer',
-      endedBy,
-    }
-    const keep = entry.end - entry.start >= 1000
-    return {
-      ...s,
-      entries: keep ? [...s.entries, entry] : s.entries,
-      session: { ...sess, accumulatedMs: sess.accumulatedMs + (entry.end - entry.start), runningSince: null },
-    }
-  }
-
-  const begin = (s: State, ref: TaskRef, at: number): State => {
-    const r = resolveTask(s, ref)
-    return {
-      ...r.state,
-      session: { projectId: ref.projectId, taskId: r.taskId, startedAt: at, accumulatedMs: 0, runningSince: at },
-      pendingReturn: null,
-      autoResumed: null,
-    }
-  }
-
-  const store: MockStore = {
+  return {
     getState: () => state,
     subscribe: (l) => {
       listeners.add(l)
       return () => listeners.delete(l)
     },
-    replaceState: (next) => commit(prune(next, clock())),
-
-    start(ref) {
+    replaceState: (next) => commit(E.prune(next, clock())),
+    simulateAway(awayMs) {
       const now = clock()
-      commit(begin(closeSegment(state, now, 'stop'), ref, now))
-      return done()
-    },
-    pause() {
-      commit(closeSegment(state, clock(), 'pause'))
-      return done()
-    },
-    resume() {
-      if (state.session && !state.session.runningSince) {
-        commit({ ...state, session: { ...state.session, runningSince: clock() } })
-      }
-      return done()
-    },
-    stop() {
-      commit({ ...closeSegment(state, clock(), 'stop'), session: null })
-      return done()
-    },
-    switchTo(ref) {
-      const now = clock()
-      commit(begin(closeSegment(state, now, 'switch'), ref, now))
-      return done()
+      // An idle event fired `threshold` after the user stopped, `awayMs` ago.
+      const idleAt = now - awayMs + state.settings.idleThresholdSec * 1000
+      let next = E.idle({ ...state, lastSeen: idleAt }, idleAt).state
+      next = E.active(next, now).state
+      commit(next)
     },
 
-    goIdle(lastActiveAt) {
-      if (state.idle) return done()
-      const sess = state.session
-      const wasRunning = !!sess?.runningSince
-      let next = closeSegment(state, lastActiveAt, 'idle')
-      next = {
-        ...next,
-        session: wasRunning ? null : next.session,
-        idle: { since: lastActiveAt, previous: wasRunning && sess ? { projectId: sess.projectId, taskId: sess.taskId } : null },
-        autoResumed: null,
-      }
-      commit(next)
-      return done()
-    },
-    returnFromIdle(at) {
-      const idle = state.idle
-      if (!idle) return done()
-      let next: State = {
-        ...state,
-        idle: null,
-        away: [...state.away, { id: uid('a'), start: idle.since, end: at }],
-      }
-      if (idle.previous) {
-        const awayMin = (at - idle.since) / MIN
-        const { onReturn, autoResumeMaxAwayMin } = state.settings
-        if (onReturn === 'auto' && awayMin <= autoResumeMaxAwayMin) {
-          next = begin(next, idle.previous, at)
-          next = { ...next, autoResumed: { awayStart: idle.since, returnedAt: at, ...idle.previous } }
-        } else {
-          next = {
-            ...next,
-            pendingReturn: {
-              awayStart: idle.since,
-              returnedAt: at,
-              previous: idle.previous,
-              reason: onReturn === 'auto' ? 'too-long' : 'ask',
-            },
-          }
-        }
-      }
-      commit(next)
-      return done()
-    },
-    resolveReturn(choice: ReturnChoice) {
-      const pr = state.pendingReturn
-      if (!pr) return done()
-      const now = clock()
-      if (choice.action === 'resume') commit(begin(state, pr.previous, now))
-      else if (choice.action === 'switch') commit(begin(state, choice, now))
-      else commit({ ...state, pendingReturn: null })
-      return done()
-    },
-    dismissAutoResumeNotice() {
-      commit({ ...state, autoResumed: null })
-      return done()
-    },
+    start: (ref) => apply(E.start(state, ref, clock())),
+    pause: () => apply(E.pause(state, clock())),
+    resume: () => apply(E.resume(state, clock())),
+    stop: () => apply(E.stop(state, clock())),
+    switchTo: (ref) => apply(E.switchTo(state, ref, clock())),
+    resolveReturn: (choice) => apply(E.resolveReturn(state, choice, clock())),
+    dismissAutoResumeNotice: () => apply(E.dismissAutoResumeNotice(state)),
 
     addEntry(input) {
-      const entry: Entry = { ...input, id: uid('e'), source: 'manual', endedBy: 'manual' }
-      commit({ ...state, entries: [...state.entries, entry] })
-      return Promise.resolve(entry)
+      const r = E.addEntry(state, input)
+      commit(r.state)
+      return Promise.resolve(r.entry)
     },
-    updateEntry(id, patch) {
-      commit({ ...state, entries: state.entries.map((e) => (e.id === id ? { ...e, ...patch } : e)) })
-      return done()
-    },
+    updateEntry: (id, patch) => apply({ state: E.updateEntry(state, id, patch), effects: [] }),
     deleteEntry(id) {
-      const removed = state.entries.find((e) => e.id === id)
-      commit({ ...state, entries: state.entries.filter((e) => e.id !== id) })
-      return Promise.resolve(removed)
+      const r = E.deleteEntry(state, id)
+      commit(r.state)
+      return Promise.resolve(r.removed)
     },
-    restoreEntry(entry) {
-      if (!state.entries.some((e) => e.id === entry.id)) commit({ ...state, entries: [...state.entries, entry] })
-      return done()
+    restoreEntry: (entry) => apply({ state: E.restoreEntry(state, entry), effects: [] }),
+    addProject(input) {
+      const r = E.addProject(state, input, clock())
+      commit(r.state)
+      return Promise.resolve(r.project)
     },
-
-    addProject({ name, color }) {
-      const project = { id: uid('p'), name: name.trim(), color, archived: false, createdAt: clock() }
-      commit({ ...state, projects: [...state.projects, project] })
-      return Promise.resolve(project)
-    },
-    updateProject(id, patch) {
-      let next: State = { ...state, projects: state.projects.map((p) => (p.id === id ? { ...p, ...patch } : p)) }
-      if (patch.archived && next.session?.projectId === id) next = { ...closeSegment(next, clock(), 'stop'), session: null }
-      commit(next)
-      return done()
-    },
+    updateProject: (id, patch) => apply(E.updateProject(state, id, patch, clock())),
     addTask(projectId, name) {
-      const task: Task = { id: uid('t'), projectId, name: name.trim(), archived: false }
-      commit({ ...state, tasks: [...state.tasks, task] })
-      return Promise.resolve(task)
+      const r = E.addTask(state, projectId, name)
+      commit(r.state)
+      return Promise.resolve(r.task)
     },
-    updateTask(id, patch) {
-      commit({ ...state, tasks: state.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)) })
-      return done()
-    },
-
-    updateSettings(patch) {
-      commit({ ...state, settings: { ...state.settings, ...patch } })
-      return done()
-    },
-    completeOnboarding({ projects, settings }) {
-      const now = clock()
-      const created = projects
-        .filter((p) => p.name.trim())
-        .map((p) => ({ id: uid('p'), name: p.name.trim(), color: p.color, archived: false, createdAt: now }))
-      commit({
-        ...state,
-        onboarded: true,
-        projects: [...state.projects, ...created],
-        settings: { ...state.settings, ...settings },
-      })
-      return done()
-    },
-
-    exportData(format: ExportFormat) {
-      const s = state
-      if (format === 'json') {
-        return Promise.resolve(
-          JSON.stringify(
-            {
-              app: 'wherewent',
-              version: 1,
-              exportedAt: new Date(clock()).toISOString(),
-              projects: s.projects,
-              tasks: s.tasks,
-              entries: [...s.entries].sort((a, b) => a.start - b.start),
-              away: s.away,
-              settings: s.settings,
-            },
-            null,
-            2,
-          ),
-        )
-      }
-      const esc = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
-      const rows = [['date', 'start', 'end', 'duration_hours', 'project', 'task', 'source'].join(',')]
-      for (const e of [...s.entries].sort((a, b) => a.start - b.start)) {
-        const p = s.projects.find((x) => x.id === e.projectId)
-        const t = s.tasks.find((x) => x.id === e.taskId)
-        rows.push(
-          [
-            toDateInput(e.start),
-            toTimeInput(e.start),
-            toTimeInput(e.end),
-            String(decimalHours(e.end - e.start)),
-            esc(p?.name ?? ''),
-            esc(t?.name ?? ''),
-            e.source,
-          ].join(','),
-        )
-      }
-      return Promise.resolve(rows.join('\n'))
-    },
+    updateTask: (id, patch) => apply({ state: E.updateTask(state, id, patch), effects: [] }),
+    updateSettings: (patch) => apply(E.updateSettings(state, patch)),
+    completeOnboarding: (input) => apply(E.completeOnboarding(state, input, clock())),
+    exportData: (format) => Promise.resolve(exportData(state, format, clock())),
   }
-  return store
 }

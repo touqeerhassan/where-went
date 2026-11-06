@@ -2,39 +2,18 @@
  * The single seam between UI and persistence.
  *
  * Components only ever talk to a `WherewentStore` obtained from `useWherewent()`.
- * Today the active implementation is an in-memory mock (src/mock/mockStore.ts).
- * A later session swaps `defaultStore` for a chrome.storage-backed implementation
- * of the same interface; no component changes are needed.
- *
- * Contract notes for implementers:
- *  - `getState()` must be synchronous and return an immutable snapshot (same
- *    reference until something changes). Keep an in-memory cache, hydrate it
- *    from storage on boot, and update it from `chrome.storage.onChanged`.
- *  - Every mutation is async and resolves after the write is persisted.
- *  - `subscribe` listeners fire after every committed change.
- *  - Idle handling: the background worker calls `goIdle(lastActiveAt)` when the
- *    idle threshold is crossed and `returnFromIdle(now)` on activity. The store
- *    decides between asking (pendingReturn) and auto-resuming (autoResumed).
+ * - In the extension, the store is `createChromeStore()` (src/ext/chromeStore.ts):
+ *   reads chrome.storage.local, sends every mutation to the service worker.
+ * - The prototype shell and the landing page use `createMockStore()`
+ *   (src/mock/mockStore.ts), which runs the same pure engine in memory.
  */
 import { createContext, createElement, useContext, useSyncExternalStore, type ReactNode } from 'react'
 import type { Entry, Project, ProjectColor, Settings, State, Task } from './types'
-import { createMockStore } from './mock/mockStore'
+import type { ReturnChoice, TaskRef } from './core/engine'
+import type { ExportFormat } from './core/export'
 
 export type * from './types'
-
-/** Identify a task by id, or by a typed name (created on demand inside the project). */
-export interface TaskRef {
-  projectId: string
-  taskId?: string | null
-  taskName?: string
-}
-
-export type ReturnChoice =
-  | { action: 'resume' }
-  | ({ action: 'switch' } & TaskRef)
-  | { action: 'stay' }
-
-export type ExportFormat = 'csv' | 'json'
+export type { ReturnChoice, TaskRef, ExportFormat }
 
 export interface WherewentStore {
   getState(): State
@@ -48,9 +27,7 @@ export interface WherewentStore {
   /** Close the running entry and immediately start a new one. */
   switchTo(ref: TaskRef): Promise<void>
 
-  // Idle lifecycle
-  goIdle(lastActiveAt: number): Promise<void>
-  returnFromIdle(at: number): Promise<void>
+  // Return from idle
   resolveReturn(choice: ReturnChoice): Promise<void>
   dismissAutoResumeNotice(): Promise<void>
 
@@ -75,12 +52,8 @@ export interface WherewentStore {
   exportData(format: ExportFormat): Promise<string>
 }
 
-/** The app-wide instance. Swap this line for the chrome.storage implementation. */
-export const defaultStore: WherewentStore = createMockStore()
+const StoreContext = createContext<WherewentStore | null>(null)
 
-const StoreContext = createContext<WherewentStore>(defaultStore)
-
-/** Scope a subtree to a specific store (the landing page renders several isolated demos). */
 export function StoreProvider({ store, children }: { store: WherewentStore; children: ReactNode }) {
   return createElement(StoreContext.Provider, { value: store }, children)
 }
@@ -88,6 +61,7 @@ export function StoreProvider({ store, children }: { store: WherewentStore; chil
 /** Current snapshot + the store for calling actions. */
 export function useWherewent(): [State, WherewentStore] {
   const store = useContext(StoreContext)
+  if (!store) throw new Error('useWherewent() needs a <StoreProvider>')
   const state = useSyncExternalStore(store.subscribe, store.getState, store.getState)
   return [state, store]
 }

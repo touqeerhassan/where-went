@@ -11,7 +11,7 @@ export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss()],
   build: {
-    outDir: resolve(import.meta.dirname, 'dist/landing'),
+    outDir: resolve(import.meta.dirname, 'dist-landing'),
     emptyOutDir: true,
     rollupOptions: {
       input: {

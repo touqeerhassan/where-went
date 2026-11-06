@@ -20,7 +20,8 @@ import {
   formatDuration,
   formatTime,
   recentPairs,
-  sessionElapsed,
+  timerElapsed,
+  formatThreshold,
   startOfDay,
   totalIn,
   totalsByProject,
@@ -41,7 +42,7 @@ export interface PopupProps {
 /** The toolbar popup: 380 x 560. */
 export function Popup({ onOpenDashboard, frozenAt }: PopupProps) {
   const [state] = useWherewent()
-  const ticking = frozenAt === undefined && !!state.session?.runningSince
+  const ticking = frozenAt === undefined && !!state.active
   const live = useNow(ticking)
   const now = frozenAt ?? live
   const dayStart = startOfDay(now)
@@ -63,11 +64,11 @@ export function Popup({ onOpenDashboard, frozenAt }: PopupProps) {
             </div>
           </header>
           <main className="min-h-0 flex-1 overflow-y-auto">
-            {state.session ? <RunningView state={state} now={now} /> : <IdleView state={state} />}
+            {state.active || state.paused ? <RunningView state={state} now={now} /> : <IdleView state={state} />}
           </main>
           <footer className="flex h-8 shrink-0 items-center justify-between border-t border-line px-3 text-2xs text-ink-3">
             <span>
-              Stops after <span className="tnum">{state.settings.idleThresholdMin}</span> min idle ·{' '}
+              Stops after <span className="tnum">{formatThreshold(state.settings.idleThresholdSec)}</span> idle ·{' '}
               {state.settings.onReturn === 'ask' ? 'Asks on return' : 'Auto-resumes'}
             </span>
             <span>Stored on this device</span>
@@ -103,6 +104,7 @@ function IdleView({ state }: { state: State }) {
 
   return (
     <div className="flex flex-col gap-4 p-3">
+      {state.pendingResume?.returnedAt != null && <PendingReturnBanner state={state} />}
       <form
         className="flex flex-col gap-3"
         onSubmit={(e) => {
@@ -249,11 +251,11 @@ function NoProjects() {
 
 function RunningView({ state, now }: { state: State; now: number }) {
   const [, store] = useWherewent()
-  const session = state.session!
+  const session = (state.active ?? state.paused)!
   const project = findProject(state, session.projectId)
   const task = findTask(state, session.taskId)
-  const running = !!session.runningSince
-  const elapsed = sessionElapsed(session, now)
+  const running = !!state.active
+  const elapsed = timerElapsed(state, now)
   const switchRef = useRef<HTMLButtonElement>(null)
   const [showAll, setShowAll] = useState(false)
 
@@ -439,6 +441,44 @@ export function AutoResumeBanner({ state, onSwitch, onDismiss }: { state: State;
       <IconButton label="Dismiss" className="-mr-1 size-7" onClick={onDismiss ?? (() => store.dismissAutoResumeNotice())}>
         <XIcon size={14} />
       </IconButton>
+    </div>
+  )
+}
+
+/* ----------------------------------------------- pending return (Ask me) */
+
+/** Shown in the popup while a return-from-idle prompt is pending (also the badge fallback target). */
+function PendingReturnBanner({ state }: { state: State }) {
+  const [, store] = useWherewent()
+  const p = state.pendingResume!
+  const project = findProject(state, p.projectId)
+  const task = findTask(state, p.taskId)
+  const away = (p.returnedAt ?? p.idleSince) - p.idleSince
+  return (
+    <div role="status" className="flex flex-col gap-2 rounded-lg border border-away-line bg-away-soft/60 p-3">
+      <p className="flex items-center gap-2 text-[13px] text-ink">
+        <span className="hatch-away inline-block h-3 w-5 shrink-0 rounded-[2px]" aria-hidden="true" />
+        <span>
+          <span className="font-semibold">
+            Away <span className="tnum">{formatDuration(away)}</span>
+          </span>{' '}
+          <span className="text-ink-2">
+            since <span className="tnum">{formatTime(p.idleSince)}</span>, not tracked.
+          </span>
+        </span>
+      </p>
+      <div className="flex gap-1.5">
+        <Button size="sm" variant="primary" className="min-w-0 flex-1 justify-start" onClick={() => store.resolveReturn({ action: 'resume' })}>
+          <PlayIcon size={14} weight="fill" aria-hidden="true" className="shrink-0" />
+          <span className="truncate">
+            Resume {project?.name}
+            {task ? ` / ${task.name}` : ''}
+          </span>
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => store.resolveReturn({ action: 'stay' })}>
+          Stay stopped
+        </Button>
+      </div>
     </div>
   )
 }

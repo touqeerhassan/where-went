@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEventHandler, type ReactNode, type RefObject } from 'react'
 import { ArrowLeftIcon, ArrowRightIcon, PlayIcon } from '@phosphor-icons/react'
 import { useWherewent } from '../store'
-import { findProject, findTask, formatDuration, formatTime, recentPairs } from '../lib/time'
+import { findProject, findTask, formatDuration, formatTime, recentPairs, type Pair } from '../lib/time'
 import { Button, Kbd, LogoMark, ProjectDot } from './ui'
 
 /**
@@ -9,10 +9,22 @@ import { Button, Kbd, LogoMark, ProjectDot } from './ui'
  * setting is "Ask me" (or the absence exceeded the auto-resume limit).
  * Keys: Enter resumes (default focus), P picks another, Esc stays stopped.
  */
-export function ReturnPrompt({ autoFocus = true, onDone }: { autoFocus?: boolean; onDone?: () => void }) {
+export function ReturnPrompt({
+  autoFocus = true,
+  onDone,
+  mode = 'return',
+  fill = false,
+}: {
+  autoFocus?: boolean
+  onDone?: () => void
+  /** return: the prompt; pick: open on the picker; switch: switch the running timer (from the auto-resume notification). */
+  mode?: 'return' | 'pick' | 'switch'
+  /** Fill the host window instead of the fixed 360 x 320 frame. */
+  fill?: boolean
+}) {
   const [state, store] = useWherewent()
-  const pr = state.pendingReturn
-  const [picking, setPicking] = useState(false)
+  const pr = state.pendingResume?.returnedAt != null ? state.pendingResume : null
+  const [picking, setPicking] = useState(mode !== 'return')
   const resumeRef = useRef<HTMLButtonElement>(null)
   const pickHeadingRef = useRef<HTMLHeadingElement>(null)
 
@@ -22,7 +34,24 @@ export function ReturnPrompt({ autoFocus = true, onDone }: { autoFocus?: boolean
     else resumeRef.current?.focus()
   }, [picking, autoFocus, pr])
 
-  const options = useMemo(() => (pr ? recentPairs(state, 4, pr.previous) : []), [state, pr])
+  const exclude = pr ? { projectId: pr.projectId, taskId: pr.taskId } : state.active ? { projectId: state.active.projectId, taskId: state.active.taskId } : undefined
+  const options = useMemo(() => recentPairs(state, 5, exclude), [state, exclude?.projectId, exclude?.taskId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const Frame = fill ? FillFrame : FixedFrame
+
+  if (mode === 'switch' && !pr) {
+    return (
+      <Frame onKeyDown={(e) => e.key === 'Escape' && onDone?.()}>
+        <Picker
+          title="Switch to"
+          options={options}
+          headingRef={pickHeadingRef}
+          onBack={onDone}
+          backLabel="Close"
+          onPick={(o) => store.switchTo({ projectId: o.project.id, taskId: o.task?.id ?? null }).then(() => onDone?.())}
+        />
+      </Frame>
+    )
+  }
 
   if (!pr) {
     return (
@@ -34,9 +63,9 @@ export function ReturnPrompt({ autoFocus = true, onDone }: { autoFocus?: boolean
     )
   }
 
-  const project = findProject(state, pr.previous.projectId)
-  const task = findTask(state, pr.previous.taskId)
-  const away = pr.returnedAt - pr.awayStart
+  const project = findProject(state, pr.projectId)
+  const task = findTask(state, pr.taskId)
+  const away = (pr.returnedAt ?? pr.idleSince) - pr.idleSince
   const act = (fn: () => Promise<void>) => fn().then(() => onDone?.())
 
   return (
@@ -64,7 +93,7 @@ export function ReturnPrompt({ autoFocus = true, onDone }: { autoFocus?: boolean
           <p className="mt-1 flex items-center gap-2 text-[13px] text-ink-2">
             <span className="hatch-away inline-block h-3 w-5 shrink-0 rounded-[2px]" aria-hidden="true" />
             <span>
-              Since <span className="tnum">{formatTime(pr.awayStart)}</span>. Those minutes were not tracked.
+              Since <span className="tnum">{formatTime(pr.idleSince)}</span>. Those minutes were not tracked.
             </span>
           </p>
           {pr.reason === 'too-long' && (
@@ -109,45 +138,84 @@ export function ReturnPrompt({ autoFocus = true, onDone }: { autoFocus?: boolean
           </div>
         </div>
       ) : (
-        <div className="flex h-full flex-col p-4">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="-ml-2" onClick={() => setPicking(false)} aria-label="Back">
-              <ArrowLeftIcon size={14} aria-hidden="true" />
-            </Button>
-            <h1 ref={pickHeadingRef} tabIndex={-1} className="text-sm font-semibold">
-              Start something else
-            </h1>
-          </div>
-          <ul className="mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-            {options.map((o) => (
-              <li key={`${o.project.id}:${o.task?.id ?? ''}`}>
-                <button
-                  type="button"
-                  onClick={() => act(() => store.resolveReturn({ action: 'switch', projectId: o.project.id, taskId: o.task?.id ?? null }))}
-                  className="group flex h-11 w-full items-center gap-2.5 rounded-md border border-line bg-surface px-2.5 text-left hover:border-line-strong hover:bg-surface-2"
-                >
-                  <ProjectDot color={o.project.color} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[13px] font-medium">{o.project.name}</span>
-                    <span className="block truncate text-[12px] text-ink-3">{o.task?.name ?? 'No task'}</span>
-                  </span>
-                  <ArrowRightIcon size={14} className="text-ink-3 group-hover:text-primary-ink" aria-hidden="true" />
-                </button>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-[12px] text-ink-3">
-            <Kbd>Esc</Kbd> back
-          </p>
-        </div>
+        <Picker
+          title="Start something else"
+          options={options}
+          headingRef={pickHeadingRef}
+          onBack={() => setPicking(false)}
+          backLabel="Back"
+          onPick={(o) => act(() => store.resolveReturn({ action: 'switch', projectId: o.project.id, taskId: o.task?.id ?? null }))}
+        />
       )}
     </Frame>
   )
 }
 
-function Frame({ children, onKeyDown }: { children: React.ReactNode; onKeyDown?: React.KeyboardEventHandler }) {
+function Picker({
+  title,
+  options,
+  headingRef,
+  onBack,
+  backLabel,
+  onPick,
+}: {
+  title: string
+  options: Pair[]
+  headingRef: RefObject<HTMLHeadingElement | null>
+  onBack?: () => void
+  backLabel: string
+  onPick: (o: Pair) => void
+}) {
+  return (
+    <div className="flex h-full flex-col p-4">
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" className="-ml-2" onClick={onBack} aria-label={backLabel}>
+          <ArrowLeftIcon size={14} aria-hidden="true" />
+        </Button>
+        <h1 ref={headingRef} tabIndex={-1} className="text-sm font-semibold">
+          {title}
+        </h1>
+      </div>
+      <ul className="mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+        {options.map((o) => (
+          <li key={`${o.project.id}:${o.task?.id ?? ''}`}>
+            <button
+              type="button"
+              onClick={() => onPick(o)}
+              className="group flex h-11 w-full items-center gap-2.5 rounded-md border border-line bg-surface px-2.5 text-left hover:border-line-strong hover:bg-surface-2"
+            >
+              <ProjectDot color={o.project.color} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[13px] font-medium">{o.project.name}</span>
+                <span className="block truncate text-[12px] text-ink-3">{o.task?.name ?? 'No task'}</span>
+              </span>
+              <ArrowRightIcon size={14} className="text-ink-3 group-hover:text-primary-ink" aria-hidden="true" />
+            </button>
+          </li>
+        ))}
+        {options.length === 0 && <li className="text-[13px] text-ink-3">No recent projects. Open the popup to start one.</li>}
+      </ul>
+      <p className="mt-2 text-[12px] text-ink-3">
+        <Kbd>Esc</Kbd> {backLabel.toLowerCase()}
+      </p>
+    </div>
+  )
+}
+
+type FrameProps = { children: ReactNode; onKeyDown?: KeyboardEventHandler }
+
+function FixedFrame({ children, onKeyDown }: FrameProps) {
   return (
     <div role="dialog" aria-label="Back from idle" onKeyDown={onKeyDown} className="h-[320px] w-[360px] overflow-hidden bg-bg text-ink">
+      {children}
+    </div>
+  )
+}
+
+/** Used inside the real prompt window: fills whatever size the OS gave the window. */
+function FillFrame({ children, onKeyDown }: FrameProps) {
+  return (
+    <div role="dialog" aria-label="Back from idle" onKeyDown={onKeyDown} className="h-dvh w-full overflow-hidden bg-bg text-ink">
       {children}
     </div>
   )
